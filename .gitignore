@@ -1,0 +1,8 @@
+.build/
+.swiftpm/
+*.xcodeproj
+.DS_Store
+videos/*
+!videos/.gitkeep
+transcriptions/*
+!transcriptions/.gitkeep
