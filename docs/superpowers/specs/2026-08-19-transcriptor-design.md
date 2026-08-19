@@ -24,6 +24,21 @@ A 40 minute WWDC session transcribes to roughly 6,000 words, or upwards of 8,000
 No design that passes a full transcript to the model in one call can work.
 Every stage below that touches the model is bounded in input size by construction.
 
+**Known accuracy limit — measured, not estimated.**
+Compound API identifiers are split and lowercased by the recognizer before the model ever sees them:
+
+| Spoken | Transcribed |
+|---|---|
+| `SpeechAnalyzer` | speech analyzer |
+| `AVAudioConverter` | AVAudio converter |
+| `ViewBuilder` | view builder |
+| `SwiftUI` | `SwiftUI` |
+
+Well-known product names survive; multi-word identifiers do not.
+The map stage therefore asks the model to reconstruct identifier casing, and this is understood to be imperfect.
+For notes consumed by a coding agent a confidently wrong symbol name is worse than an absent one, so the instruction tells the model to leave a term as spoken when unsure.
+Validating candidate symbols against real framework headers would remove this limit and is deliberately out of scope for the first version.
+
 Target platform is macOS 26 or later, Swift 6.
 Verified against macOS 26.5, Swift 6.3.3, Xcode 26.6.
 
@@ -175,12 +190,13 @@ One refused chunk must never cost a 40 minute transcript.
 
 ## Stage 5: reduce
 
-The reduce input is only the chunk topic titles and term lists.
+The reduce input is the chunk topic titles (capped at 50 passages, each truncated to 100 characters) and a capped term list.
 It never includes summaries, key points, guidance, or caveats.
 
-For a 40 minute video this is roughly 30 short strings plus a term list, a few hundred tokens.
-The input therefore cannot overflow regardless of video length.
-That bound is structural, which is what makes this pass safe where a naive "summarize all the notes" reduce would fail on long input.
+If a transcript produces more than 50 passages the reduce is skipped entirely and linear order is used.
+This bound is measured, not assumed.
+Against the real on-device model: 120 topics fit but the model referenced only 36 of them; 200 topics overflowed the context window outright.
+Grouping quality collapses long before the window does, so calling the model above 50 passages is worse than not calling it.
 
 The pass produces a document title, an overview of two or three sentences, and a grouping of chunk indices into sections that merges topics the speaker returned to later.
 
@@ -188,6 +204,12 @@ Grouping is applied in Swift against the real notes.
 The model decides only which chunks belong together.
 It never rewrites note content.
 Term deduplication is case-insensitive Swift, not a model call.
+
+**Completeness is guaranteed independently of the model.**
+The model routinely fails to reference every chunk: measured at 60 passages it referenced only 30, and at 120 only 36.
+It also reuses the same index across groups, measured even at 20 passages.
+`DocumentMerger` therefore consumes each index at most once, first group wins, and appends every unreferenced chunk as its own trailing section in transcript order.
+The outline affects organization only; it can never cause content loss or duplication.
 
 If the reduce fails for any reason, the pipeline falls back to linear transcript order and still emits a complete document.
 The reduce is an enhancement and never a dependency.

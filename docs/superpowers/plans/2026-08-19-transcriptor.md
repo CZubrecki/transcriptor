@@ -34,9 +34,20 @@ Every API in this plan was type-checked or executed against macOS 26.5 / Swift 6
 - A synthesized fixture transcribed end to end into 2 segments with correct `CMTimeRange` timestamps.
 - `@Generable` with `@Guide(description:)` and `.count(0...5)` produced correct structured output on a WWDC-style snippet.
 
-**Known accuracy limit:** the ASR layer transcribed "SpeechAnalyzer" as "the speech analyzer class".
-Identifier casing is lost before the model sees the text.
-The map stage instructions therefore ask the model to reconstruct identifier casing, and this is understood to be imperfect.
+**Known accuracy limit — measured, not estimated.**
+Compound API identifiers are split and lowercased by the recognizer before the model ever sees them:
+
+| Spoken | Transcribed |
+|---|---|
+| `SpeechAnalyzer` | speech analyzer |
+| `AVAudioConverter` | AVAudio converter |
+| `ViewBuilder` | view builder |
+| `SwiftUI` | `SwiftUI` |
+
+Well-known product names survive; multi-word identifiers do not.
+The map stage therefore asks the model to reconstruct identifier casing, and this is understood to be imperfect.
+For notes consumed by a coding agent a confidently wrong symbol name is worse than an absent one, so the instruction tells the model to leave a term as spoken when unsure.
+Validating candidate symbols against real framework headers would remove this limit and is deliberately out of scope for the first version.
 
 ## File Structure
 
@@ -66,7 +77,7 @@ The map stage instructions therefore ask the model to reconstruct identifier cas
 
 **Interfaces:**
 - Consumes: nothing
-- Produces: `Workspace(root: URL)`, `.videosDirectory: URL`, `.outputDirectory(for videoURL: URL) -> URL`, `.isProcessed(videoURL: URL, transcribeOnly: Bool) -> Bool`, `.pendingVideos() throws -> [URL]`
+- Produces: `Workspace(root: URL)`, `.videosDirectory: URL`, `.outputDirectory(for videoURL: URL) -> URL`, `.isProcessed(videoURL: URL, transcribeOnly: Bool) -> Bool`, `.pendingVideos(transcribeOnly: Bool, force: Bool) throws -> [URL]`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -434,7 +445,7 @@ git commit -m "feat: render timestamped full transcript markdown"
 
 **Interfaces:**
 - Consumes: nothing
-- Produces: `AudioExtractor.duration(of url: URL) async throws -> TimeInterval`, `AudioExtractor.buffers(from url: URL, to targetFormat: AVAudioFormat) throws -> AsyncThrowingStream<AVAudioPCMBuffer, Error>`, `AudioExtractorError.noAudioTrack`, and the test helper `AudioFixture.write(text:to:) async throws`
+- Produces: `AudioExtractor.duration(of url: URL) async throws -> TimeInterval`, `AudioExtractor.buffers(from url: URL, to targetFormat: AVAudioFormat) async throws -> AsyncThrowingStream<AVAudioPCMBuffer, Error>` (pull-based; see ledger ruling), `AudioExtractorError.noAudioTrack`, and the test helper `AudioFixture.write(text:to:) async throws`
 
 `AudioFixture` is used by this task and again by Task 5, so it lives in `Tests/TranscriptorKitTests/Support/`.
 
@@ -636,7 +647,7 @@ git commit -m "feat: stream container audio as converted PCM buffers"
 - Test: `Tests/TranscriptorKitTests/SpeechTranscriberEngineTests.swift`
 
 **Interfaces:**
-- Consumes: `AudioExtractor` (Task 4), `TranscriptSegment` (Task 2), `AudioFixture` (Task 4)
+- Consumes: `AudioExtractor` (Task 4, note `buffers` is `async throws`), `TranscriptSegment` (Task 2), `AudioFixture` (Task 4)
 - Produces: `protocol Transcribing { func transcribe(url: URL, locale: Locale) async throws -> [TranscriptSegment] }`, `SpeechTranscriberEngine`
 
 - [ ] **Step 1: Write the failing test**
@@ -736,12 +747,13 @@ public struct SpeechTranscriberEngine: Transcribing {
     try await analyzer.start(inputSequence: stream)
 
     do {
-      for try await buffer in try AudioExtractor.buffers(from: url, to: format) {
+      for try await buffer in try await AudioExtractor.buffers(from: url, to: format) {
         continuation.yield(AnalyzerInput(buffer: buffer))
       }
     } catch {
       continuation.finish()
       collector.cancel()
+      await analyzer.cancelAndFinishNow()
       throw error
     }
 
@@ -1536,12 +1548,15 @@ struct Transcriptor: AsyncParsableCommand {
     let workspace = Workspace(root: URL(fileURLWithPath: FileManager.default.currentDirectoryPath))
     let resolvedLocale = Locale(identifier: locale ?? Locale.current.identifier)
 
-    var effectiveTranscribeOnly = transcribeOnly
-    if !transcribeOnly, case .available = SystemLanguageModel.default.availability {} else if !transcribeOnly {
-      FileHandle.standardError.write(Data(
-        "Apple Intelligence is unavailable, so notes cannot be generated. Writing transcripts only.\n".utf8))
-      effectiveTranscribeOnly = true
+    var modelUnavailable = false
+    if !transcribeOnly {
+      if case .available = SystemLanguageModel.default.availability {} else {
+        FileHandle.standardError.write(Data(
+          "Apple Intelligence is unavailable, so notes cannot be generated. Writing transcripts only.\n".utf8))
+        modelUnavailable = true
+      }
     }
+    let effectiveTranscribeOnly = transcribeOnly || modelUnavailable
 
     let videos: [URL]
     if let path {
@@ -1574,8 +1589,7 @@ struct Transcriptor: AsyncParsableCommand {
       }
     }
 
-    if failures > 0 { throw ExitCode(1) }
-    if effectiveTranscribeOnly, !transcribeOnly { throw ExitCode(1) }
+    if failures > 0 || modelUnavailable { throw ExitCode(1) }
   }
 }
 ```
