@@ -29,6 +29,17 @@ Every task runs through these phases in order.
 Do not skip a phase.
 Do not start a phase before the previous one is approved.
 
+### Tooling exception
+
+Changes with no testable behavior in the package skip Phases 1 through 3.
+This covers the Makefile, CI configuration, editor configuration, and documentation.
+
+Such a change ships as a single PR into `main` that states every command the author ran and the result of each.
+Verification is running the thing, not asserting on it.
+
+The exception never applies to anything under `Sources/`.
+If a change touches both, split it: the tooling part takes the exception, the source part takes the full workflow.
+
 ### Phase 0 - Research
 
 Read the relevant code before writing anything.
@@ -189,13 +200,22 @@ Swift package, tools version 6.3, macOS 26 minimum.
 Tests use the `Testing` framework (`@Test`, `#expect`), not XCTest.
 
 ```
-swift build
-swift test
-swift test --filter <testFunctionName>
-swift run transcriptor <args>
+make build                       # swift build
+make release                     # swift build -c release
+make test                        # swift test
+make run ARGS="videos/x.mp4"     # swift run transcriptor
+make clean                       # swift package clean
+make                             # lists the targets
 ```
 
-Targets: `TranscriptorKit` (library), `transcriptor` (CLI), `TranscriptorKitTests`.
+Use the make targets rather than the underlying `swift` commands, so the two cannot drift apart.
+The one exception is running a single test, which has no target:
+
+```
+swift test --filter <testFunctionName>
+```
+
+Package targets: `TranscriptorKit` (library), `transcriptor` (CLI), `TranscriptorKitTests`.
 
 ## GitHub
 
@@ -221,3 +241,4 @@ Each one is a rationalization with a known outcome.
 | "I can do the next slice too, it is small" | One slice, one PR, one approval. Stop after each. |
 | "The task grew, but I am almost done" | A task that grew past 5 slices was two tasks. Stop and say so. |
 | "I do not need the handoff file, I remember" | You will not, after the clear. Write it. |
+| "This is basically tooling, the exception covers it" | The exception is for code with no testable behavior. Anything in `Sources/` never qualifies. |

@@ -17,7 +17,7 @@ Without Apple Intelligence the tool still transcribes, writes the transcript, ex
 ## Usage
 
 ```bash
-swift build -c release
+make release
 
 .build/release/transcriptor videos/session.mp4   # one file
 .build/release/transcriptor                      # every unprocessed video in videos/
@@ -35,6 +35,18 @@ Output lands in `transcriptions/<video-name>/`:
 - `organized.md` - title, overview, sections of key points, guidance, and caveats
 
 Progress and warnings go to stderr; stdout carries only result paths, so it pipes cleanly.
+
+## Development
+
+Run `make` on its own to list the targets.
+
+| Target | Runs |
+|---|---|
+| `make build` | `swift build` |
+| `make release` | `swift build -c release` |
+| `make test` | `swift test` |
+| `make run ARGS="..."` | `swift run transcriptor ...` |
+| `make clean` | `swift package clean` |
 
 ## How it works
 
