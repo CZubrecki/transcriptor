@@ -4,14 +4,14 @@
 Send every status message to stderr so stdout carries only result paths, as the README already promises.
 
 ## Tests
-- [ ] An empty videos directory reports "Nothing to do." on stderr, leaves stdout empty, and exits 0 - `emptyWorkspaceReportsNothingToDoOnStandardError`
-- [ ] A missing videos directory reports the error on stderr, leaves stdout empty, and exits 1 - `missingVideosDirectoryFailsOnStandardError`
+- [ ] An empty videos directory reports "Nothing to do." on stderr, leaves stdout empty, and exits 0 - `emptyWorkspaceReportsNothingToDoOnStandardError` (written, failing)
+- [x] A missing videos directory reports the error on stderr, leaves stdout empty, and exits 1 - `missingVideosDirectoryFailsOnStandardError` (written, passing)
 
 ## Slices
 - [ ] 1. Route status output to the correct stream - turns green: both tests above
 
 ## PRs
-- tests:
+- tests: https://github.com/CZubrecki/transcriptor/pull/7 (merged)
 - slice 1:
 
 ## Follow-ups
