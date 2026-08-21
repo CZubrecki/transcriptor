@@ -1,27 +1,49 @@
 import AVFoundation
 
+enum AudioFixtureError: Error {
+  case noVoiceAvailable
+  case timedOut
+}
+
 enum AudioFixture {
+  /// Synthesis reports completion only through its buffer callback, and on a
+  /// machine without a usable speech session that callback never arrives. The
+  /// deadline turns that into a failure instead of an indefinite hang.
+  static let deadline = Duration.seconds(30)
+
   static func write(text: String, to url: URL) async throws {
+    guard let voice = AVSpeechSynthesisVoice(language: "en-US") else {
+      throw AudioFixtureError.noVoiceAvailable
+    }
     let synthesizer = AVSpeechSynthesizer()
     let utterance = AVSpeechUtterance(string: text)
-    utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+    utterance.voice = voice
 
-    nonisolated(unsafe) var file: AVAudioFile?
-    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-      nonisolated(unsafe) var finished = false
-      synthesizer.write(utterance) { buffer in
-        guard let pcm = buffer as? AVAudioPCMBuffer else { return }
-        if pcm.frameLength == 0 {
-          if !finished { finished = true; continuation.resume() }
-          return
-        }
-        if file == nil {
-          file = try? AVAudioFile(forWriting: url, settings: pcm.format.settings)
-        }
-        try? file?.write(from: pcm)
+    let synthesis = AsyncStream<Void>.makeStream()
+    var file: AVAudioFile?
+    synthesizer.write(utterance) { buffer in
+      guard let pcm = buffer as? AVAudioPCMBuffer else { return }
+      guard pcm.frameLength > 0 else {
+        synthesis.continuation.finish()
+        return
       }
+      if file == nil {
+        file = try? AVAudioFile(forWriting: url, settings: pcm.format.settings)
+      }
+      try? file?.write(from: pcm)
     }
-    file = nil
+
+    try await withThrowingTaskGroup(of: Void.self) { group in
+      group.addTask {
+        for await _ in synthesis.stream {}
+      }
+      group.addTask {
+        try await Task.sleep(for: deadline)
+        throw AudioFixtureError.timedOut
+      }
+      try await group.next()
+      group.cancelAll()
+    }
   }
 }
 

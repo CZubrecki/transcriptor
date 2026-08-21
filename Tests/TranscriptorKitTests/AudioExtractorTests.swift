@@ -2,7 +2,7 @@ import Testing
 import AVFoundation
 @testable import TranscriptorKit
 
-@Test func extractsBuffersInTargetFormat() async throws {
+@Test(.enabled(if: Capability.speechSynthesis)) func extractsBuffersInTargetFormat() async throws {
   let url = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "\(UUID().uuidString).caf")
   try await AudioFixture.write(text: "Testing audio extraction with a reasonably long sentence.", to: url)
   defer { try? FileManager.default.removeItem(at: url) }
@@ -17,7 +17,7 @@ import AVFoundation
   #expect(frames > 16000)
 }
 
-@Test func reportsDuration() async throws {
+@Test(.enabled(if: Capability.speechSynthesis)) func reportsDuration() async throws {
   let url = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "\(UUID().uuidString).caf")
   try await AudioFixture.write(text: "A short clip.", to: url)
   defer { try? FileManager.default.removeItem(at: url) }
@@ -51,7 +51,7 @@ import AVFoundation
   }
 }
 
-@Test func manuallyCancellingReaderMarksItCancelled() async throws {
+@Test(.enabled(if: Capability.speechSynthesis)) func manuallyCancellingReaderMarksItCancelled() async throws {
   let url = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "\(UUID().uuidString).caf")
   try await AudioFixture.write(
     text: "Testing audio extraction with a reasonably long sentence that yields several buffers.",
@@ -71,7 +71,7 @@ import AVFoundation
   #expect(reader.readerStatus == .cancelled)
 }
 
-@Test func abandonedStreamReleasesFileForSubsequentReads() async throws {
+@Test(.enabled(if: Capability.speechSynthesis)) func abandonedStreamReleasesFileForSubsequentReads() async throws {
   let url = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "\(UUID().uuidString).caf")
   try await AudioFixture.write(
     text: "Testing audio extraction with a reasonably long sentence that yields several buffers.",
