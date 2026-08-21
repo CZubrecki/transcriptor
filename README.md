@@ -46,7 +46,13 @@ Run `make` on its own to list the targets.
 | `make release` | `swift build -c release` |
 | `make test` | `swift test` |
 | `make run ARGS="..."` | `swift run transcriptor ...` |
+| `make format` | `swiftformat Sources Tests` |
+| `make lint` | `swiftformat --lint` plus `swiftlint` |
 | `make clean` | `swift package clean` |
+
+Formatting follows the [Airbnb Swift Style Guide](https://github.com/airbnb/swift). `.swiftformat` and `.swiftlint.yml` are our own copies of their configuration, not a dependency, so we can diverge where it suits the project.
+
+Both tools come from Homebrew: `brew install swiftformat swiftlint`. The pinned versions live in the Makefile and must match CI.
 
 ## How it works
 
