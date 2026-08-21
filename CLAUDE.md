@@ -142,6 +142,15 @@ It does not mean write a longer justification.
 
 If a slice grows past the ceiling mid-work, stop, split what you have, and say so.
 
+### Tool-generated changes
+
+A change produced entirely by running a tool, such as a formatter, is exempt from the ceiling.
+Splitting it buys nothing, because nobody reviews it line by line.
+
+Such a PR must say which command produced it, and must change nothing by hand.
+If a hand edit is needed, it goes in a separate PR, before or after, never mixed in.
+Verification is that the build and the full test suite still pass.
+
 ## Staying on task
 
 You will notice unrelated problems while working.
