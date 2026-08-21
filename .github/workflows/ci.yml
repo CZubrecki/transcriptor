@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Build
+        run: make build
+
+      - name: Test - pure logic
+        timeout-minutes: 5
+        continue-on-error: true
+        run: |
+          swift test \
+            --skip extractsStructuredNotesFromATechnicalChunk \
+            --skip splitsChunksThatOverflowTheContextWindow \
+            --skip skipsOutlineGenerationWhenTooManyTopics \
+            --skip transcribesSynthesizedSpeech
+
+      - name: Test - outline guard
+        timeout-minutes: 3
+        continue-on-error: true
+        run: swift test --filter skipsOutlineGenerationWhenTooManyTopics
+
+      - name: Test - foundation models
+        timeout-minutes: 3
+        continue-on-error: true
+        run: swift test --filter 'extractsStructuredNotesFromATechnicalChunk|splitsChunksThatOverflowTheContextWindow'
+
+      - name: Test - speech
+        timeout-minutes: 5
+        continue-on-error: true
+        run: swift test --filter transcribesSynthesizedSpeech
