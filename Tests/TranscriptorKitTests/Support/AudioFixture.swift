@@ -1,9 +1,13 @@
 import AVFoundation
 
+// MARK: - AudioFixtureError
+
 enum AudioFixtureError: Error {
   case noVoiceAvailable
   case timedOut
 }
+
+// MARK: - AudioFixture
 
 enum AudioFixture {
   /// Synthesis reports completion only through its buffer callback, and on a
@@ -35,7 +39,7 @@ enum AudioFixture {
 
     try await withThrowingTaskGroup(of: Void.self) { group in
       group.addTask {
-        for await _ in synthesis.stream {}
+        for await _ in synthesis.stream { }
       }
       group.addTask {
         try await Task.sleep(for: deadline)
@@ -47,17 +51,22 @@ enum AudioFixture {
   }
 }
 
+// MARK: - VideoOnlyFixture
+
 enum VideoOnlyFixture {
   static func write(to url: URL) async throws {
     try? FileManager.default.removeItem(at: url)
     let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
     let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
       AVVideoCodecKey: AVVideoCodecType.h264,
-      AVVideoWidthKey: 160, AVVideoHeightKey: 120])
+      AVVideoWidthKey: 160,
+      AVVideoHeightKey: 120,
+    ])
     input.expectsMediaDataInRealTime = false
     let adaptor = AVAssetWriterInputPixelBufferAdaptor(
       assetWriterInput: input,
-      sourcePixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB])
+      sourcePixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB],
+    )
     writer.add(input)
     writer.startWriting()
     writer.startSession(atSourceTime: .zero)

@@ -1,14 +1,16 @@
-import Testing
 import Foundation
+import Testing
 @testable import TranscriptorKit
 
-@Test func outputDirectoryUsesVideoBasename() {
+@Test
+func `output directory uses video basename`() {
   let ws = Workspace(root: URL(fileURLWithPath: "/tmp/proj"))
   let out = ws.outputDirectory(for: URL(fileURLWithPath: "/tmp/proj/videos/WWDC Session 10023.mp4"))
   #expect(out.path == "/tmp/proj/transcriptions/WWDC Session 10023")
 }
 
-@Test func isProcessedChecksOrganizedByDefault() throws {
+@Test
+func `is processed checks organized by default`() throws {
   let root = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: UUID().uuidString)
   defer { try? FileManager.default.removeItem(at: root) }
   let ws = Workspace(root: root)
@@ -20,7 +22,8 @@ import Foundation
   #expect(ws.isProcessed(videoURL: video, transcribeOnly: false) == true)
 }
 
-@Test func isProcessedChecksTranscriptWhenTranscribeOnly() throws {
+@Test
+func `is processed checks transcript when transcribe only`() throws {
   let root = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: UUID().uuidString)
   defer { try? FileManager.default.removeItem(at: root) }
   let ws = Workspace(root: root)
@@ -33,7 +36,8 @@ import Foundation
   #expect(ws.isProcessed(videoURL: video, transcribeOnly: true) == true)
 }
 
-@Test func pendingVideosFiltersExtensionsCaseInsensitive() throws {
+@Test
+func `pending videos filters extensions case insensitive`() throws {
   let root = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: UUID().uuidString)
   defer { try? FileManager.default.removeItem(at: root) }
   let ws = Workspace(root: root)
@@ -49,7 +53,8 @@ import Foundation
   #expect(names == ["a.mp4", "b.MOV", "c.m4v"])
 }
 
-@Test func pendingVideosSortedByLastPathComponent() throws {
+@Test
+func `pending videos sorted by last path component`() throws {
   let root = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: UUID().uuidString)
   defer { try? FileManager.default.removeItem(at: root) }
   let ws = Workspace(root: root)
@@ -65,7 +70,8 @@ import Foundation
   #expect(names == ["a.mov", "m.m4v", "z.mp4"])
 }
 
-@Test func pendingVideosRespectsForceFlagWithOrganized() throws {
+@Test
+func `pending videos respects force flag with organized`() throws {
   let root = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: UUID().uuidString)
   defer { try? FileManager.default.removeItem(at: root) }
   let ws = Workspace(root: root)
@@ -84,7 +90,8 @@ import Foundation
   #expect(withForce.count == 1)
 }
 
-@Test func pendingVideosTranscribeOnlyIgnoresOrganized() throws {
+@Test
+func `pending videos transcribe only ignores organized`() throws {
   let root = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: UUID().uuidString)
   defer { try? FileManager.default.removeItem(at: root) }
   let ws = Workspace(root: root)

@@ -1,6 +1,8 @@
 import Foundation
 import FoundationModels
 
+// MARK: - Organizing
+
 public protocol Organizing: Sendable {
   func notes(for chunk: [TranscriptSegment]) async throws -> ChunkNotes?
   func notesSplittingOnOverflow(for chunk: [TranscriptSegment]) async throws -> [ChunkNotes]
@@ -14,10 +16,17 @@ extension Organizing {
   }
 }
 
-public struct FoundationModelsOrganizer: Organizing {
-  private let profile: Profile
+// MARK: - FoundationModelsOrganizer
 
-  public init(profile: Profile = .default) { self.profile = profile }
+public struct FoundationModelsOrganizer: Organizing {
+
+  // MARK: Lifecycle
+
+  public init(profile: Profile = .default) {
+    self.profile = profile
+  }
+
+  // MARK: Public
 
   public func notes(for chunk: [TranscriptSegment]) async throws -> ChunkNotes? {
     let text = chunk.map(\.text).joined(separator: " ")
@@ -25,14 +34,17 @@ public struct FoundationModelsOrganizer: Organizing {
     do {
       return try await session.respond(
         to: "Extract notes from this passage:\n\n\(text)",
-        generating: ChunkNotes.self).content
+        generating: ChunkNotes.self,
+      ).content
     } catch let error as LanguageModelSession.GenerationError {
       switch error {
       case .exceededContextWindowSize:
         throw OrganizeError.contextOverflow
+
       case .guardrailViolation:
         warn("skipping a passage: content refused by safety guardrails: \(error)")
         return nil
+
       default:
         warn("skipping a passage: \(error)")
         return nil
@@ -40,7 +52,7 @@ public struct FoundationModelsOrganizer: Organizing {
     }
   }
 
-  // Overrides the protocol default to add recursive splitting on overflow.
+  /// Overrides the protocol default to add recursive splitting on overflow.
   public func notesSplittingOnOverflow(for chunk: [TranscriptSegment]) async throws -> [ChunkNotes] {
     do {
       if let single = try await notes(for: chunk) { return [single] }
@@ -56,7 +68,14 @@ public struct FoundationModelsOrganizer: Organizing {
       return left + right
     }
   }
+
+  // MARK: Private
+
+  private let profile: Profile
+
 }
+
+// MARK: - OrganizeError
 
 public enum OrganizeError: Error {
   case contextOverflow
@@ -66,6 +85,8 @@ func warn(_ message: String) {
   FileHandle.standardError.write(Data("warning: \(message)\n".utf8))
 }
 
+// MARK: - OutlineGroup
+
 @Generable
 public struct OutlineGroup: Sendable {
   @Guide(description: "Title for this group of passages")
@@ -73,6 +94,8 @@ public struct OutlineGroup: Sendable {
   @Guide(description: "Zero-based indices of the passages belonging to this group", .count(1...12))
   public var chunkIndices: [Int]
 }
+
+// MARK: - DocumentOutline
 
 @Generable
 public struct DocumentOutline: Sendable {
@@ -103,7 +126,8 @@ extension FoundationModelsOrganizer {
     do {
       return try await session.respond(
         to: "Passage topics:\n\(numbered)\n\nTerms mentioned: \(termList)",
-        generating: DocumentOutline.self).content
+        generating: DocumentOutline.self,
+      ).content
     } catch {
       warn("outline generation failed, falling back to linear order: \(error)")
       return nil

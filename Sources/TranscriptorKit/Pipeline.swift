@@ -1,5 +1,7 @@
 import Foundation
 
+// MARK: - PipelineResult
+
 public struct PipelineResult: Sendable {
   public let transcriptPath: URL
   public let organizedPath: URL?
@@ -7,10 +9,11 @@ public struct PipelineResult: Sendable {
   public let passagesFailed: Int
 }
 
+// MARK: - Pipeline
+
 public struct Pipeline: Sendable {
-  private let workspace: Workspace
-  private let transcriber: any Transcribing
-  private let organizer: any Organizing
+
+  // MARK: Lifecycle
 
   public init(workspace: Workspace, transcriber: any Transcribing, organizer: any Organizing) {
     self.workspace = workspace
@@ -18,10 +21,12 @@ public struct Pipeline: Sendable {
     self.organizer = organizer
   }
 
+  // MARK: Public
+
   public func process(
     videoURL: URL,
     locale: Locale,
-    transcribeOnly: Bool
+    transcribeOnly: Bool,
   ) async throws -> PipelineResult {
     let outputDirectory = workspace.outputDirectory(for: videoURL)
     try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
@@ -36,7 +41,7 @@ public struct Pipeline: Sendable {
       sourcePath: videoURL.path,
       duration: duration,
       locale: locale.identifier,
-      date: Date()
+      date: Date(),
     ).write(to: transcriptPath, atomically: true, encoding: .utf8)
 
     guard !transcribeOnly else {
@@ -44,7 +49,7 @@ public struct Pipeline: Sendable {
     }
 
     let chunks = TranscriptChunker.chunk(segments)
-    var allNotes: [ChunkNotes] = []
+    var allNotes = [ChunkNotes]()
     var failedChunks = 0
     for (index, chunk) in chunks.enumerated() {
       warn("organizing passage \(index + 1) of \(chunks.count)")
@@ -67,20 +72,29 @@ public struct Pipeline: Sendable {
 
     guard !allNotes.isEmpty else {
       warn("no passages could be organized, keeping the transcript only")
-      return PipelineResult(transcriptPath: transcriptPath, organizedPath: nil, passagesOrganized: 0, passagesFailed: failedChunks)
+      return PipelineResult(
+        transcriptPath: transcriptPath,
+        organizedPath: nil,
+        passagesOrganized: 0,
+        passagesFailed: failedChunks,
+      )
     }
 
     guard failedChunks * 2 <= chunks.count else {
       warn("more than half the passages failed to organize (\(failedChunks) of \(chunks.count)); "
         + "organized notes were not written, keeping the transcript only")
       return PipelineResult(
-        transcriptPath: transcriptPath, organizedPath: nil,
-        passagesOrganized: chunks.count - failedChunks, passagesFailed: failedChunks)
+        transcriptPath: transcriptPath,
+        organizedPath: nil,
+        passagesOrganized: chunks.count - failedChunks,
+        passagesFailed: failedChunks,
+      )
     }
 
     let outline = try? await organizer.outline(
       topics: allNotes.map(\.topic),
-      terms: Array(Set(allNotes.flatMap(\.terms))).sorted())
+      terms: Array(Set(allNotes.flatMap(\.terms))).sorted(),
+    )
 
     let document = DocumentMerger.merge(notes: allNotes, outline: outline)
     let organizedPath = outputDirectory.appending(path: "organized.md")
@@ -88,7 +102,17 @@ public struct Pipeline: Sendable {
       .write(to: organizedPath, atomically: true, encoding: .utf8)
 
     return PipelineResult(
-      transcriptPath: transcriptPath, organizedPath: organizedPath,
-      passagesOrganized: chunks.count - failedChunks, passagesFailed: failedChunks)
+      transcriptPath: transcriptPath,
+      organizedPath: organizedPath,
+      passagesOrganized: chunks.count - failedChunks,
+      passagesFailed: failedChunks,
+    )
   }
+
+  // MARK: Private
+
+  private let workspace: Workspace
+  private let transcriber: any Transcribing
+  private let organizer: any Organizing
+
 }
