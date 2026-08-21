@@ -1,5 +1,7 @@
 import Foundation
 
+// MARK: - MarkdownRenderer
+
 public enum MarkdownRenderer {
   public static func timestamp(_ seconds: TimeInterval) -> String {
     guard seconds.isFinite else { return "00:00" }
@@ -12,9 +14,9 @@ public enum MarkdownRenderer {
     sourcePath: String,
     duration: TimeInterval,
     locale: String,
-    date: Date
+    date: Date,
   ) -> String {
-    var lines: [String] = []
+    var lines = [String]()
     lines.append("---")
     lines.append("source: \(sourcePath)")
     lines.append("duration: \(timestamp(duration))")
@@ -35,6 +37,9 @@ public enum MarkdownRenderer {
 }
 
 extension MarkdownRenderer {
+
+  // MARK: Public
+
   public static func organized(_ document: OrganizedDocument) -> String {
     var lines: [String] = ["# \(document.title)", ""]
 
@@ -60,6 +65,8 @@ extension MarkdownRenderer {
     return lines.joined(separator: "\n")
   }
 
+  // MARK: Private
+
   private static func appendList(_ lines: inout [String], heading: String?, items: [String]) {
     guard !items.isEmpty else { return }
     if let heading { lines.append(contentsOf: [heading, ""]) }
@@ -67,4 +74,3 @@ extension MarkdownRenderer {
     lines.append("")
   }
 }
-

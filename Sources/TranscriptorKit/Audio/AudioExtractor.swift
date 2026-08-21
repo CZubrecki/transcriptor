@@ -1,6 +1,8 @@
 import AVFoundation
 import Foundation
 
+// MARK: - AudioExtractorError
+
 public enum AudioExtractorError: Error, CustomStringConvertible {
   case noAudioTrack(URL)
   case converterUnavailable
@@ -15,6 +17,8 @@ public enum AudioExtractorError: Error, CustomStringConvertible {
   }
 }
 
+// MARK: - AudioExtractor
+
 public enum AudioExtractor {
   public static func duration(of url: URL) async throws -> TimeInterval {
     try await AVURLAsset(url: url).load(.duration).seconds
@@ -22,23 +26,20 @@ public enum AudioExtractor {
 
   public static func buffers(
     from url: URL,
-    to targetFormat: AVAudioFormat
+    to targetFormat: AVAudioFormat,
   ) async throws -> AsyncThrowingStream<AVAudioPCMBuffer, Error> {
     let reader = try await AudioSampleReader(url: url, targetFormat: targetFormat)
     return AsyncThrowingStream { try reader.next() }
   }
 }
 
+// MARK: - AudioSampleReader
+
 /// The unfolding closure above invokes `next()` serially, never concurrently,
 /// so the unsynchronized mutable state here is safe despite `@unchecked Sendable`.
 final class AudioSampleReader: @unchecked Sendable {
-  private let assetReader: AVAssetReader
-  private let output: AVAssetReaderTrackOutput
-  private let targetFormat: AVAudioFormat
-  private var converter: AVAudioConverter?
-  private(set) var droppedSampleCount = 0
 
-  var readerStatus: AVAssetReader.Status { assetReader.status }
+  // MARK: Lifecycle
 
   init(url: URL, targetFormat: AVAudioFormat) async throws {
     let asset = AVURLAsset(url: url)
@@ -57,19 +58,28 @@ final class AudioSampleReader: @unchecked Sendable {
     self.targetFormat = targetFormat
   }
 
-  func cancel() {
+  deinit {
     assetReader.cancelReading()
   }
 
-  deinit {
+  // MARK: Internal
+
+  private(set) var droppedSampleCount = 0
+
+  var readerStatus: AVAssetReader.Status {
+    assetReader.status
+  }
+
+  func cancel() {
     assetReader.cancelReading()
   }
 
   func next() throws -> AVAudioPCMBuffer? {
     while let sample = output.copyNextSampleBuffer() {
-      guard let description = CMSampleBufferGetFormatDescription(sample),
-            let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(description),
-            let sourceFormat = AVAudioFormat(streamDescription: asbd)
+      guard
+        let description = CMSampleBufferGetFormatDescription(sample),
+        let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(description),
+        let sourceFormat = AVAudioFormat(streamDescription: asbd)
       else {
         droppedSampleCount += 1
         continue
@@ -83,7 +93,11 @@ final class AudioSampleReader: @unchecked Sendable {
       }
       input.frameLength = frames
       CMSampleBufferCopyPCMDataIntoAudioBufferList(
-        sample, at: 0, frameCount: Int32(frames), into: input.mutableAudioBufferList)
+        sample,
+        at: 0,
+        frameCount: Int32(frames),
+        into: input.mutableAudioBufferList,
+      )
 
       if converter == nil {
         converter = AVAudioConverter(from: sourceFormat, to: targetFormat)
@@ -118,4 +132,12 @@ final class AudioSampleReader: @unchecked Sendable {
     }
     return nil
   }
+
+  // MARK: Private
+
+  private let assetReader: AVAssetReader
+  private let output: AVAssetReaderTrackOutput
+  private let targetFormat: AVAudioFormat
+  private var converter: AVAudioConverter?
+
 }

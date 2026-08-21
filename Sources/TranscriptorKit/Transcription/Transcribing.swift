@@ -1,10 +1,14 @@
+import AVFoundation
 import Foundation
 import Speech
-import AVFoundation
+
+// MARK: - Transcribing
 
 public protocol Transcribing: Sendable {
   func transcribe(url: URL, locale: Locale) async throws -> [TranscriptSegment]
 }
+
+// MARK: - TranscriptionError
 
 public enum TranscriptionError: Error, CustomStringConvertible {
   case noCompatibleAudioFormat
@@ -18,8 +22,15 @@ public enum TranscriptionError: Error, CustomStringConvertible {
   }
 }
 
+// MARK: - SpeechTranscriberEngine
+
 public struct SpeechTranscriberEngine: Transcribing {
-  public init() {}
+
+  // MARK: Lifecycle
+
+  public init() { }
+
+  // MARK: Public
 
   public func transcribe(url: URL, locale: Locale) async throws -> [TranscriptSegment] {
     let supported = await SpeechTranscriber.supportedLocales
@@ -31,7 +42,8 @@ public struct SpeechTranscriberEngine: Transcribing {
       locale: locale,
       transcriptionOptions: [],
       reportingOptions: [],
-      attributeOptions: [.audioTimeRange])
+      attributeOptions: [.audioTimeRange],
+    )
 
     if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
       FileHandle.standardError.write(Data("installing speech assets for \(locale.identifier)\n".utf8))
@@ -44,12 +56,13 @@ public struct SpeechTranscriberEngine: Transcribing {
     }
 
     let collector = Task {
-      var collected: [TranscriptSegment] = []
+      var collected = [TranscriptSegment]()
       for try await result in transcriber.results where result.isFinal {
         collected.append(TranscriptSegment(
           text: String(result.text.characters),
           start: result.range.start.seconds,
-          end: result.range.end.seconds))
+          end: result.range.end.seconds,
+        ))
       }
       return collected
     }

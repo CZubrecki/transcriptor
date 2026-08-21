@@ -1,7 +1,7 @@
 public struct Profile: Sendable {
-  public let instructions: String
-
-  public init(instructions: String) { self.instructions = instructions }
+  public init(instructions: String) {
+    self.instructions = instructions
+  }
 
   public static let `default` = Profile(instructions: """
     You extract structured study notes from a transcript passage.
@@ -14,4 +14,7 @@ public struct Profile: Sendable {
     are confident the term is a real identifier. If unsure, write it as spoken.
     Leave a list empty when the passage offers nothing for it.
     """)
+
+  public let instructions: String
+
 }

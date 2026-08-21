@@ -1,15 +1,20 @@
-import Testing
 import Foundation
+import Testing
 @testable import TranscriptorKit
 
-@Test(.enabled(if: Capability.speechSynthesis)) func transcribesSynthesizedSpeech() async throws {
+@Test(.enabled(if: Capability.speechSynthesis))
+func `transcribes synthesized speech`() async throws {
   let url = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "\(UUID().uuidString).caf")
   try await AudioFixture.write(
-    text: "The speech analyzer class requires macOS 26 or later.", to: url)
+    text: "The speech analyzer class requires macOS 26 or later.",
+    to: url,
+  )
   defer { try? FileManager.default.removeItem(at: url) }
 
   let segments = try await SpeechTranscriberEngine().transcribe(
-    url: url, locale: Locale(identifier: "en_US"))
+    url: url,
+    locale: Locale(identifier: "en_US"),
+  )
 
   #expect(!segments.isEmpty)
   let joined = segments.map(\.text).joined(separator: " ").lowercased()
