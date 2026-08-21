@@ -204,6 +204,8 @@ make build                       # swift build
 make release                     # swift build -c release
 make test                        # swift test
 make run ARGS="videos/x.mp4"     # swift run transcriptor
+make format                      # swiftformat, writes in place
+make lint                        # swiftformat --lint plus swiftlint
 make clean                       # swift package clean
 make                             # lists the targets
 ```
