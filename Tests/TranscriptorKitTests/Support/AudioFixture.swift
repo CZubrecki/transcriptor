@@ -1,18 +1,38 @@
 import AVFoundation
 
+enum AudioFixtureError: Error {
+  case noVoiceAvailable
+  case timedOut
+}
+
 enum AudioFixture {
+  /// Synthesis reports completion only through its buffer callback, and on a
+  /// machine without a usable speech session that callback never arrives. The
+  /// deadline turns that into a failure instead of an indefinite hang.
+  static let deadline = Duration.seconds(30)
+
   static func write(text: String, to url: URL) async throws {
+    guard let voice = AVSpeechSynthesisVoice(language: "en-US") else {
+      throw AudioFixtureError.noVoiceAvailable
+    }
     let synthesizer = AVSpeechSynthesizer()
     let utterance = AVSpeechUtterance(string: text)
-    utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+    utterance.voice = voice
 
     nonisolated(unsafe) var file: AVAudioFile?
-    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-      nonisolated(unsafe) var finished = false
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+      let state = FixtureState(continuation: continuation)
+
+      let watchdog = Task {
+        try? await Task.sleep(for: deadline)
+        state.finish(.failure(AudioFixtureError.timedOut))
+      }
+
       synthesizer.write(utterance) { buffer in
         guard let pcm = buffer as? AVAudioPCMBuffer else { return }
         if pcm.frameLength == 0 {
-          if !finished { finished = true; continuation.resume() }
+          watchdog.cancel()
+          state.finish(.success(()))
           return
         }
         if file == nil {
@@ -22,6 +42,25 @@ enum AudioFixture {
       }
     }
     file = nil
+  }
+}
+
+/// Guarantees the continuation resumes exactly once, whichever of the buffer
+/// callback and the watchdog gets there first.
+private final class FixtureState: @unchecked Sendable {
+  private let lock = NSLock()
+  private var continuation: CheckedContinuation<Void, Error>?
+
+  init(continuation: CheckedContinuation<Void, Error>) {
+    self.continuation = continuation
+  }
+
+  func finish(_ result: Result<Void, Error>) {
+    lock.lock()
+    let pending = continuation
+    continuation = nil
+    lock.unlock()
+    pending?.resume(with: result)
   }
 }
 
