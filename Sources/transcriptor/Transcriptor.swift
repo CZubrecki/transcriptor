@@ -31,7 +31,6 @@ struct Transcriptor: AsyncParsableCommand {
 
   mutating func run() async throws {
     let workspace = Workspace(root: URL(fileURLWithPath: FileManager.default.currentDirectoryPath))
-    let resolvedLocale = try await resolveLocale()
 
     var modelUnavailable = false
     if !transcribeOnly {
@@ -58,9 +57,11 @@ struct Transcriptor: AsyncParsableCommand {
     }
 
     guard !videos.isEmpty else {
-      print("Nothing to do.")
+      FileHandle.standardError.write(Data("Nothing to do.\n".utf8))
       return
     }
+
+    let resolvedLocale = try await resolveLocale()
 
     var failures = 0
     for video in videos {
@@ -75,7 +76,8 @@ struct Transcriptor: AsyncParsableCommand {
           locale: resolvedLocale,
           transcribeOnly: effectiveTranscribeOnly,
         )
-        print(result.organizedPath?.path ?? result.transcriptPath.path)
+        let resultPath = result.organizedPath?.path ?? result.transcriptPath.path
+        FileHandle.standardOutput.write(Data("\(resultPath)\n".utf8))
         if !effectiveTranscribeOnly, result.organizedPath == nil {
           failures += 1
           FileHandle.standardError.write(Data(
