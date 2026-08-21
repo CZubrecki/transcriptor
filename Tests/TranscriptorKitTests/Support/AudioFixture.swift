@@ -19,48 +19,31 @@ enum AudioFixture {
     let utterance = AVSpeechUtterance(string: text)
     utterance.voice = voice
 
-    nonisolated(unsafe) var file: AVAudioFile?
-    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-      let state = FixtureState(continuation: continuation)
-
-      let watchdog = Task {
-        try? await Task.sleep(for: deadline)
-        state.finish(.failure(AudioFixtureError.timedOut))
+    let synthesis = AsyncStream<Void>.makeStream()
+    var file: AVAudioFile?
+    synthesizer.write(utterance) { buffer in
+      guard let pcm = buffer as? AVAudioPCMBuffer else { return }
+      guard pcm.frameLength > 0 else {
+        synthesis.continuation.finish()
+        return
       }
-
-      synthesizer.write(utterance) { buffer in
-        guard let pcm = buffer as? AVAudioPCMBuffer else { return }
-        if pcm.frameLength == 0 {
-          watchdog.cancel()
-          state.finish(.success(()))
-          return
-        }
-        if file == nil {
-          file = try? AVAudioFile(forWriting: url, settings: pcm.format.settings)
-        }
-        try? file?.write(from: pcm)
+      if file == nil {
+        file = try? AVAudioFile(forWriting: url, settings: pcm.format.settings)
       }
+      try? file?.write(from: pcm)
     }
-    file = nil
-  }
-}
 
-/// Guarantees the continuation resumes exactly once, whichever of the buffer
-/// callback and the watchdog gets there first.
-private final class FixtureState: @unchecked Sendable {
-  private let lock = NSLock()
-  private var continuation: CheckedContinuation<Void, Error>?
-
-  init(continuation: CheckedContinuation<Void, Error>) {
-    self.continuation = continuation
-  }
-
-  func finish(_ result: Result<Void, Error>) {
-    lock.lock()
-    let pending = continuation
-    continuation = nil
-    lock.unlock()
-    pending?.resume(with: result)
+    try await withThrowingTaskGroup(of: Void.self) { group in
+      group.addTask {
+        for await _ in synthesis.stream {}
+      }
+      group.addTask {
+        try await Task.sleep(for: deadline)
+        throw AudioFixtureError.timedOut
+      }
+      try await group.next()
+      group.cancelAll()
+    }
   }
 }
 
